@@ -4,7 +4,7 @@ A machine learning system that predicts whether a traffic incident will require 
 
 ---
 
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
+Check out Live API at https://supratimkukri-RoadClosure.hf.space/
 
 ## Table of Contents
 
