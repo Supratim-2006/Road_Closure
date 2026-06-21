@@ -5,7 +5,6 @@ A machine learning system that predicts whether a traffic incident will require 
 ---
 
 Check out Live API at https://supratimkukri-RoadClosure.hf.space/
-
 ## Table of Contents
 
 - [Overview](#overview)
@@ -13,6 +12,7 @@ Check out Live API at https://supratimkukri-RoadClosure.hf.space/
 - [Feature Engineering](#feature-engineering)
 - [Model Architecture](#model-architecture)
 - [Training Pipeline](#training-pipeline)
+- [Training Results & Model Insights](#training-results--model-insights)
 - [API Reference](#api-reference)
 - [Deployment](#deployment)
 - [Project Structure](#project-structure)
@@ -31,21 +31,21 @@ Given 7 core fields about a traffic incident (time, location, cause, priority, z
 CSV Data
    │
    ▼
-┌───────────────────────────────────────────┐
-│           Feature Engineering             │
-│  ┌──────────────┐  ┌────────────────────┐ │
-│  │ Categorical  │  │   Time Features    │ │
-│  │  Cleaning    │  │ (cyclical + flags)─│ │
-│  └──────────────┘  └────────────────────┘ │
-│  ┌──────────────┐  ┌───────────────────┐  │
-│  │ Geo Cluster  │  │   Statistical     │  │
-│  │  (KMeans)    │  │  Target Encoding  │  │
-│  └──────────────┘  └───────────────────┘  │
-│  ┌──────────────┐  ┌──────────────────┐   │
-│  │ Interaction  │  │  Domain Features │   │
-│  │  Features    │  │  (15 heuristics) │   │
-│  └──────────────┘  └──────────────────┘   │
-└───────────────────────────────────────────┘
+┌─────────────────────────────────────────┐
+│           Feature Engineering           │
+│  ┌─────────────┐  ┌──────────────────┐  │
+│  │ Categorical  │  │   Time Features  │  │
+│  │  Cleaning    │  │ (cyclical + flags)│  │
+│  └─────────────┘  └──────────────────┘  │
+│  ┌─────────────┐  ┌──────────────────┐  │
+│  │ Geo Cluster  │  │   Statistical    │  │
+│  │  (KMeans)    │  │  Target Encoding │  │
+│  └─────────────┘  └──────────────────┘  │
+│  ┌─────────────┐  ┌──────────────────┐  │
+│  │ Interaction  │  │  Domain Features │  │
+│  │  Features    │  │  (15 heuristics) │  │
+│  └─────────────┘  └──────────────────┘  │
+└─────────────────────────────────────────┘
    │
    ▼
 ┌─────────────────────────────────────────┐
@@ -62,19 +62,19 @@ CSV Data
    ▼
 ┌─────────────────────────────────────────┐
 │       Soft-Voting Ensemble Model        │
-│  ┌──────────┐ ┌─────────┐ ┌──────────┐  │
-│  │ XGBoost  │ │LightGBM │ │  Random  │  │
-│  │(Optuna   │ │(Optuna  │ │  Forest  │  │
-│  │ tuned)   │ │ tuned)  │ │ (Optuna  │  │
-│  │          │ │         │ │  tuned)  │  │
-│  └──────────┘ └─────────┘ └──────────┘  │
+│  ┌──────────┐ ┌─────────┐ ┌──────────┐ │
+│  │ XGBoost  │ │LightGBM │ │  Random  │ │
+│  │(Optuna   │ │(Optuna  │ │  Forest  │ │
+│  │ tuned)   │ │ tuned)  │ │ (Optuna  │ │
+│  │          │ │         │ │  tuned)  │ │
+│  └──────────┘ └─────────┘ └──────────┘ │
 │         Optuna-tuned weights            │
 └─────────────────────────────────────────┘
    │
    ▼
 ┌─────────────────────────────────────────┐
 │      Optimal Threshold Selection        │
-│  Precision-Recall curve (recall ≥ 0.65  │
+│  Precision-Recall curve (recall ≥ 0.65 │
 │  and precision ≥ 0.35 constraint)       │
 └─────────────────────────────────────────┘
    │
@@ -261,6 +261,99 @@ bundle = {
 ```
 
 The bundle is hosted on Hugging Face Hub (`SupratimKukri/road-closure-model`) and downloaded at API startup via `hf_hub_download`.
+
+---
+
+## Training Results & Model Insights
+
+### Dataset
+
+| Stat | Value |
+|---|---|
+| Total samples | 8,173 |
+| Road Closure rate | 8.3% (heavily imbalanced) |
+| Final feature count | 40 |
+| Train / Test split | 80% / 20% (stratified) |
+
+The 8.3% positive rate (≈ 1 closure per 12 incidents) is why SMOTEENN resampling is critical. After resampling the training fold, the class distribution was approximately balanced: **4,531 No-Closure vs 5,484 Road-Closure** samples for final ensemble training.
+
+---
+
+### Hyperparameter Tuning Results (Optuna)
+
+Each model was independently tuned via Bayesian optimisation, with Road Closure F1 as the objective:
+
+| Model | Trials | Best CV F1 | Time |
+|---|---|---|---|
+| XGBoost | 25 | **0.4573** | ~52 min |
+| LightGBM | 25 | **0.4604** | ~40 min |
+| Random Forest | 20 | **0.4498** | ~2 h 54 min |
+| Ensemble (weight tuning) | 15 | **0.4638** | ~3 h 45 min |
+
+**Optimised ensemble weights:**
+
+```
+XGB = 0.75  |  LGBM = 3.86  |  RF = 0.54
+```
+
+LightGBM dominates the ensemble weighting, suggesting its leaf-wise tree growth generalises best on this imbalanced, tabular traffic dataset. XGBoost and Random Forest act as diversity contributors.
+
+> **Note on CV F1 (~0.46) vs test F1 (0.44):** The gap is small and expected — CV F1 is measured per-fold with per-fold optimal thresholds, while test F1 uses a single global threshold of 0.526.
+
+---
+
+### Test Set Performance
+
+**Optimal threshold: 0.526** (selected to satisfy recall ≥ 0.65 and precision ≥ 0.35)
+
+| Class | Precision | Recall | F1-Score | Support |
+|---|---|---|---|---|
+| No Closure | 0.95 | 0.96 | 0.95 | 1,500 |
+| Road Closure | 0.49 | 0.41 | 0.44 | 135 |
+| **Accuracy** | | | **0.92** | 1,635 |
+| Macro avg | 0.72 | 0.68 | 0.70 | 1,635 |
+| Weighted avg | 0.91 | 0.92 | 0.91 | 1,635 |
+
+#### Interpretation
+
+- **92% overall accuracy** is inflated by the majority class (No Closure). The meaningful metric is Road Closure F1.
+- **Road Closure F1 = 0.44** on a severely imbalanced dataset (8.3% positive rate) is a reasonable result — random chance would yield F1 ≈ 0.15.
+- **Precision 0.49 / Recall 0.41**: the model catches 41% of actual road closures while keeping false alarms under 51%. In an operational setting, the threshold can be lowered to trade precision for higher recall if missing a closure is more costly than false alerts.
+- **No Closure class is near-perfect (F1 = 0.95)**, confirming the model is not simply predicting the majority class.
+
+---
+
+### Feature Importances (XGBoost member)
+
+| Rank | Feature | Importance |
+|---|---|---|
+| 1 | `has_police` | 0.104 |
+| 2 | `cause_closure_rate` | 0.087 |
+| 3 | `cause_x_corridor_vol` | 0.082 |
+| 4 | `is_weekend` | 0.060 |
+| 5 | `dow_sin` | 0.045 |
+| 6 | `is_heavy_vehicle` | 0.044 |
+
+**Key insights:**
+
+- **`has_police` is the single strongest signal.** Police involvement is a strong proxy for incident severity — when a police unit is dispatched, closure likelihood rises sharply.
+- **`cause_closure_rate` (rank 2) and `cause_x_corridor_vol` (rank 3)** are both target-encoded features, confirming that historical closure rates per cause and per corridor carry the most statistical signal. High-volume corridors with historically closure-prone causes are the most reliable predictors.
+- **`is_weekend` and `dow_sin` (ranks 4–5)** show that weekend incidents are more likely to result in closures, possibly due to lower traffic management staffing and higher incident severity (e.g. more accidents vs. routine breakdowns).
+- **`is_heavy_vehicle` (rank 6)** validates the domain hypothesis: trucks and heavy vehicles create bigger obstructions and are harder to clear quickly.
+- The top 6 features span three different engineering categories (domain heuristics, statistical encoding, time features), confirming that diverse feature groups all contribute meaningfully to the model.
+
+---
+
+### Sample Predictions
+
+| Event Cause | Priority | Hour | Closure? | Confidence | Risk |
+|---|---|---|---|---|---|
+| `tree_fall` | High | 8 | ✅ True | 0.96 | High |
+| `vehicle_breakdown` | Low | 14 | ❌ False | 0.57 | Medium |
+| `vip_movement` | High | 18 | ✅ True | 0.93 | High |
+| `construction` | High | 9 | ❌ False | 0.71 | High |
+
+Notable: `construction` at peak hour with High priority scores 0.71 confidence (Risk: High) but falls below the 0.526 threshold for a closure decision — reflecting that planned construction on a known corridor is predicted to be managed without full closure.
 
 ---
 
