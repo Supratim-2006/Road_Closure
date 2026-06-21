@@ -31,21 +31,21 @@ Given 7 core fields about a traffic incident (time, location, cause, priority, z
 CSV Data
    │
    ▼
-┌─────────────────────────────────────────┐
-│           Feature Engineering           │
-│  ┌─────────────┐  ┌──────────────────┐  │
-│  │ Categorical  │  │   Time Features  │  │
-│  │  Cleaning    │  │ (cyclical + flags)│  │
-│  └─────────────┘  └──────────────────┘  │
-│  ┌─────────────┐  ┌──────────────────┐  │
-│  │ Geo Cluster  │  │   Statistical    │  │
-│  │  (KMeans)    │  │  Target Encoding │  │
-│  └─────────────┘  └──────────────────┘  │
-│  ┌─────────────┐  ┌──────────────────┐  │
-│  │ Interaction  │  │  Domain Features │  │
-│  │  Features    │  │  (15 heuristics) │  │
-│  └─────────────┘  └──────────────────┘  │
-└─────────────────────────────────────────┘
+┌───────────────────────────────────────────┐
+│           Feature Engineering             │
+│  ┌──────────────┐  ┌────────────────────┐ │
+│  │ Categorical  │  │   Time Features    │ │
+│  │  Cleaning    │  │ (cyclical + flags)─│ │
+│  └──────────────┘  └────────────────────┘ │
+│  ┌──────────────┐  ┌───────────────────┐  │
+│  │ Geo Cluster  │  │   Statistical     │  │
+│  │  (KMeans)    │  │  Target Encoding  │  │
+│  └──────────────┘  └───────────────────┘  │
+│  ┌──────────────┐  ┌──────────────────┐   │
+│  │ Interaction  │  │  Domain Features │   │
+│  │  Features    │  │  (15 heuristics) │   │
+│  └──────────────┘  └──────────────────┘   │
+└───────────────────────────────────────────┘
    │
    ▼
 ┌─────────────────────────────────────────┐
@@ -62,19 +62,19 @@ CSV Data
    ▼
 ┌─────────────────────────────────────────┐
 │       Soft-Voting Ensemble Model        │
-│  ┌──────────┐ ┌─────────┐ ┌──────────┐ │
-│  │ XGBoost  │ │LightGBM │ │  Random  │ │
-│  │(Optuna   │ │(Optuna  │ │  Forest  │ │
-│  │ tuned)   │ │ tuned)  │ │ (Optuna  │ │
-│  │          │ │         │ │  tuned)  │ │
-│  └──────────┘ └─────────┘ └──────────┘ │
+│  ┌──────────┐ ┌─────────┐ ┌──────────┐  │
+│  │ XGBoost  │ │LightGBM │ │  Random  │  │
+│  │(Optuna   │ │(Optuna  │ │  Forest  │  │
+│  │ tuned)   │ │ tuned)  │ │ (Optuna  │  │
+│  │          │ │         │ │  tuned)  │  │
+│  └──────────┘ └─────────┘ └──────────┘  │
 │         Optuna-tuned weights            │
 └─────────────────────────────────────────┘
    │
    ▼
 ┌─────────────────────────────────────────┐
 │      Optimal Threshold Selection        │
-│  Precision-Recall curve (recall ≥ 0.65 │
+│  Precision-Recall curve (recall ≥ 0.65  │
 │  and precision ≥ 0.35 constraint)       │
 └─────────────────────────────────────────┘
    │
